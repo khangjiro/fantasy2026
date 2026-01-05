@@ -7,83 +7,120 @@
     body { font-family: Arial, sans-serif; background: #f4f6f8; padding: 20px; }
     h1 { text-align: center; }
     table { width: 100%; border-collapse: collapse; background: #fff; }
-    th, td { padding: 10px; border: 1px solid #ddd; text-align: center; }
+    th, td { padding: 8px; border: 1px solid #ddd; text-align: center; }
     th { background: #37003c; color: white; }
     .loading { color: #37003c; }
+    .total { font-weight: bold; }
   </style>
 </head>
 <body>
   <h1>FPL League Standings (GW20+)</h1>
   <table>
-    <thead>
-      <tr>
-        <th>Rank</th>
-        <th>Team</th>
-        <th>Manager</th>
-        <th>Total Points GW20+</th>
-      </tr>
-    </thead>
+    <thead id="thead"></thead>
     <tbody id="standings">
-      <tr><td colspan="4" class="loading">Loading...</td></tr>
+      <tr><td colspan="99" class="loading">Loading...</td></tr>
     </tbody>
   </table>
   <script>
-const PROXY = "https://corsproxy.io/?"; // proxy công cộng, chạy tạm thời
-const LEAGUE_ID = 145810;
-const BASE_API = `https://fantasy.premierleague.com/api/leagues-classic/${LEAGUE_ID}/standings/`;
-const GW_START = 20;
+    // Dùng proxy công cộng (tạm thời, không ổn định)
+    const PROXY = "https://corsproxy.io/?";
+    const LEAGUE_ID = 145810;
+    const BASE_API = `https://fantasy.premierleague.com/api/leagues-classic/${LEAGUE_ID}/standings/`;
+    const GW_START = 20;
+    const GW_MAX = 38; // Change if current week > 38
 
-async function getAllMembers() {
-  let members = [];
-  let page = 1;
-  let hasMore = true;
-  while (hasMore) {
-    const res = await fetch(PROXY + encodeURIComponent(`${BASE_API}?page_standings=${page}`));
-    const data = await res.json();
-    if (data.standings && data.standings.results.length > 0) {
-      members = members.concat(data.standings.results);
-      hasMore = data.standings.has_next;
-      page++;
-    } else {
-      hasMore = false;
+    async function getAllMembers() {
+      let members = [];
+      let page = 1;
+      let hasMore = true;
+      while (hasMore) {
+        const res = await fetch(PROXY + encodeURIComponent(`${BASE_API}?page_standings=${page}`));
+        const data = await res.json();
+        if (data.standings && data.standings.results.length > 0) {
+          members = members.concat(data.standings.results);
+          hasMore = data.standings.has_next;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
+      return members;
     }
-  }
-  return members;
-}
 
-async function getGW20Plus(entry) {
-  try {
-    const res = await fetch(PROXY + encodeURIComponent(`https://fantasy.premierleague.com/api/entry/${entry}/history/`));
-    const history = await res.json();
-    const gw20plus = history.current.filter(gw => gw.event >= GW_START);
-    return gw20plus.reduce((sum, gw) => sum + gw.points, 0);
-  } catch {
-    return "N/A";
-  }
-}
+    async function getMemberHistory(entry) {
+      try {
+        const res = await fetch(PROXY + encodeURIComponent(`https://fantasy.premierleague.com/api/entry/${entry}/history/`));
+        const history = await res.json();
+        return history.current; // array of gw objects
+      } catch {
+        return [];
+      }
+    }
 
-document.addEventListener("DOMContentLoaded", async function() {
-  try {
-    const members = await getAllMembers();
-    const gwPointPromises = members.map(member => getGW20Plus(member.entry));
-    const gwPoints = await Promise.all(gwPointPromises);
+    // Tự động xác định các tuần đã có dữ liệu (từ GW20 trở đi)
+    function getAvailableWeeks(histories) {
+      // histories: Array of array (each member's history.current)
+      const gwSet = new Set();
+      histories.forEach(his => his.forEach(gw => {
+        if (gw.event >= GW_START) gwSet.add(gw.event);
+      }));
+      const weeks = Array.from(gwSet).sort((a,b) => a-b);
+      return weeks;
+    }
 
-    const rows = members.map((member, i) => `
-      <tr>
-        <td>${member.rank}</td>
-        <td>${member.entry_name}</td>
-        <td>${member.player_name}</td>
-        <td>${gwPoints[i]}</td>
-      </tr>
-    `).join("");
-    document.getElementById("standings").innerHTML = rows;
-  } catch (err) {
-    document.getElementById("standings").innerHTML =
-      "<tr><td colspan='4'>Failed to load data</td></tr>";
-    console.error(err);
-  }
-});
-</script>
+    document.addEventListener("DOMContentLoaded", async function() {
+      try {
+        const members = await getAllMembers();
+        const histories = await Promise.all(members.map(m => getMemberHistory(m.entry)));
+
+        // Xác định tuần đã có dữ liệu từ GW20 trở đi
+        const weeks = getAvailableWeeks(histories);
+
+        // Tạo header tự động
+        let theadHTML = `
+          <tr>
+            <th>Rank</th>
+            <th>Team</th>
+            <th>Manager</th>
+            <th>Total (all GW)</th>
+        `;
+        weeks.forEach(w => {
+          theadHTML += `<th>GW${w}</th>`;
+        });
+        theadHTML += `<th>Total GW${GW_START}+</th></tr>`;
+        document.getElementById("thead").innerHTML = theadHTML;
+
+        // Tạo body cho từng member
+        let rows = members.map((member, i) => {
+          const history = histories[i];
+          // Tổng điểm cả mùa
+          const totalAll = history.reduce((sum, gw) => sum + gw.points, 0);
+          // Tổng điểm GW20+
+          const totalGW20plus = history.filter(gw => gw.event >= GW_START)
+                                       .reduce((sum, gw) => sum + gw.points, 0);
+          // Tạo mảng điểm từng tuần (chỉ show tuần đã có dữ liệu, nếu chưa có thì để trống)
+          const gwPoints = weeks.map(w => {
+            const gw = history.find(gw => gw.event === w);
+            return gw ? gw.points : '';
+          });
+          return `
+            <tr>
+              <td>${member.rank}</td>
+              <td>${member.entry_name}</td>
+              <td>${member.player_name}</td>
+              <td class="total">${totalAll}</td>
+              ${gwPoints.map(pt => `<td>${pt}</td>`).join('')}
+              <td class="total">${totalGW20plus}</td>
+            </tr>
+          `;
+        }).join("");
+        document.getElementById("standings").innerHTML = rows;
+      } catch (err) {
+        document.getElementById("standings").innerHTML =
+          "<tr><td colspan='99'>Failed to load data</td></tr>";
+        console.error(err);
+      }
+    });
+  </script>
 </body>
 </html>
-
