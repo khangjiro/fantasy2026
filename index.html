@@ -1,54 +1,88 @@
-<script>
-const LEAGUE_ID = 145810;
-const BASE_API = `https://fantasy.premierleague.com/api/leagues-classic/${LEAGUE_ID}/standings/`;
-const PROXY = "https://corsproxy.io/?";
-const GW_START = 20;
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>FPL League Standings (GW20+)</title>
+    <style>
+      body { font-family: Arial, sans-serif; background: #f4f6f8; padding: 20px; }
+      h1 { text-align: center; }
+      table { width: 100%; border-collapse: collapse; background: #fff; }
+      th, td { padding: 10px; border: 1px solid #ddd; text-align: center; }
+      th { background: #37003c; color: white; }
+      .loading { color: #37003c; }
+    </style>
+  </head>
+  <body>
+    <h1>FPL League Standings (GW20+)</h1>
+    <table>
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>Team</th>
+          <th>Manager</th>
+          <th>Total Points GW20+</th>
+        </tr>
+      </thead>
+      <tbody id="standings">
+        <tr><td colspan="4" class="loading">Loading...</td></tr>
+      </tbody>
+    </table>
+    <script>
+      const LEAGUE_ID = 145810;
+      const BASE_API = `https://fantasy.premierleague.com/api/leagues-classic/${LEAGUE_ID}/standings/`;
+      const PROXY = "https://your-vercel-app.vercel.app/api/proxy?url="; // <-- Đổi thành proxy của bạn
+      const GW_START = 20;
 
-// Lấy toàn bộ thành viên qua nhiều trang
-async function getAllMembers() {
-  let members = [];
-  let page = 1;
-  let hasMore = true;
-  while (hasMore) {
-    const res = await fetch(PROXY + `${BASE_API}?page_standings=${page}`);
-    const data = await res.json();
-    if (data.standings && data.standings.results.length > 0) {
-      members = members.concat(data.standings.results);
-      hasMore = data.standings.has_next;
-      page++;
-    } else {
-      hasMore = false;
-    }
-  }
-  return members;
-}
+      async function getAllMembers() {
+        let members = [];
+        let page = 1;
+        let hasMore = true;
+        while (hasMore) {
+          const res = await fetch(PROXY + encodeURIComponent(`${BASE_API}?page_standings=${page}`));
+          const data = await res.json();
+          if (data.standings && data.standings.results.length > 0) {
+            members = members.concat(data.standings.results);
+            hasMore = data.standings.has_next;
+            page++;
+          } else {
+            hasMore = false;
+          }
+        }
+        return members;
+      }
 
-// Lấy tổng điểm GW20+ cho từng thành viên
-async function getGW20Plus(entry) {
-  try {
-    const res = await fetch(PROXY + `https://fantasy.premierleague.com/api/entry/${entry}/history/`);
-    const history = await res.json();
-    const gw20plus = history.current.filter(gw => gw.event >= GW_START);
-    return gw20plus.reduce((sum, gw) => sum + gw.points, 0);
-  } catch {
-    return "N/A";
-  }
-}
+      async function getGW20Plus(entry) {
+        try {
+          const res = await fetch(PROXY + encodeURIComponent(`https://fantasy.premierleague.com/api/entry/${entry}/history/`));
+          const history = await res.json();
+          const gw20plus = history.current.filter(gw => gw.event >= GW_START);
+          return gw20plus.reduce((sum, gw) => sum + gw.points, 0);
+        } catch {
+          return "N/A";
+        }
+      }
 
-(async () => {
-  const members = await getAllMembers(); // Lấy hết thành viên!
-  const gwPointPromises = members.map(member => getGW20Plus(member.entry));
-  const gwPoints = await Promise.all(gwPointPromises);
+      (async () => {
+        try {
+          const members = await getAllMembers();
+          const gwPointPromises = members.map(member => getGW20Plus(member.entry));
+          const gwPoints = await Promise.all(gwPointPromises);
 
-  // Hiển thị bảng
-  const rows = members.map((member, i) => `
-    <tr>
-      <td>${member.rank}</td>
-      <td>${member.entry_name}</td>
-      <td>${member.player_name}</td>
-      <td>${gwPoints[i]}</td>
-    </tr>
-  `).join("");
-  document.getElementById("standings").innerHTML = rows;
-})();
-</script>
+          const rows = members.map((member, i) => `
+            <tr>
+              <td>${member.rank}</td>
+              <td>${member.entry_name}</td>
+              <td>${member.player_name}</td>
+              <td>${gwPoints[i]}</td>
+            </tr>
+          `).join("");
+          document.getElementById("standings").innerHTML = rows;
+        } catch (err) {
+          document.getElementById("standings").innerHTML =
+            "<tr><td colspan='4'>Failed to load data</td></tr>";
+          console.error(err);
+        }
+      })();
+    </script>
+  </body>
+</html>
