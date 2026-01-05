@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>FPL League Standings</title>
+    <title>FPL League GW20+</title>
     <style>
       body { font-family: Arial; background: #f4f6f8; padding: 20px; }
       h1 { text-align: center; }
@@ -13,15 +13,14 @@
     </style>
   </head>
   <body>
-    <h1>FPL League Standings</h1>
+    <h1>FPL League Standings (GW20+)</h1>
     <table>
       <thead>
         <tr>
           <th>Rank</th>
           <th>Team</th>
           <th>Manager</th>
-          <th>Total Points</th>
-          <th>GW Points</th>
+          <th>Total Points GW20+</th>
         </tr>
       </thead>
       <tbody id="standings"></tbody>
@@ -32,23 +31,24 @@
       const PROXY = "https://corsproxy.io/?";
 
       // Hiển thị loading
-      document.getElementById("standings").innerHTML = "<tr><td colspan='5' class='loading'>Loading...</td></tr>";
+      document.getElementById("standings").innerHTML = "<tr><td colspan='4' class='loading'>Loading...</td></tr>";
 
       fetch(PROXY + API_URL)
         .then((res) => res.json())
         .then(async (data) => {
           const teams = data.standings.results;
-
-          // Chỉ lấy tối đa 10 team để demo, lấy nhiều thì chậm
+          // Chỉ lấy tối đa 10 team để demo cho nhanh
           const teamsToShow = teams.slice(0, 10);
 
-          // Lấy điểm GW mới nhất cho từng team
+          // Lấy tổng điểm GW 20+
           const gwPromises = teamsToShow.map(team =>
             fetch(PROXY + `https://fantasy.premierleague.com/api/entry/${team.entry}/history/`)
               .then(res => res.json())
               .then(history => {
-                const latestGW = history.current[history.current.length - 1];
-                return latestGW ? latestGW.points : 'N/A';
+                // Lọc các gameweek >= 20 và cộng lại
+                const gw20plus = history.current.filter(gw => gw.event >= 20);
+                const totalGW20plus = gw20plus.reduce((sum, gw) => sum + gw.points, 0);
+                return totalGW20plus;
               })
               .catch(() => 'N/A')
           );
@@ -61,7 +61,6 @@
                 <td>${team.rank}</td>
                 <td>${team.entry_name}</td>
                 <td>${team.player_name}</td>
-                <td>${team.total}</td>
                 <td>${gwPoints[i]}</td>
               </tr>
             `
@@ -70,7 +69,7 @@
         })
         .catch((err) => {
           document.getElementById("standings").innerHTML =
-            "<tr><td colspan='5'>Failed to load data</td></tr>";
+            "<tr><td colspan='4'>Failed to load data</td></tr>";
           console.error(err);
         });
     </script>
