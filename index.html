@@ -45,9 +45,32 @@
     </table>
 
     <script>
-      const API_URL =
-        "https://fantasy.premierleague.com/api/leagues-classic/145810/standings/";
+      const API_URL = "https://fantasy.premierleague.com/api/leagues-classic/145810/standings/";
+const PROXY = "https://corsproxy.io/?"; // proxy miễn phí
 
+fetch(PROXY + API_URL)
+  .then((res) => res.json())
+  .then((data) => {
+    const rows = data.standings.results
+      .map(
+        (team) => `
+      <tr>
+        <td>${team.rank}</td>
+        <td>${team.entry_name}</td>
+        <td>${team.player_name}</td>
+        <td>${team.total}</td>
+      </tr>
+    `
+      )
+      .join("");
+
+    document.getElementById("standings").innerHTML = rows;
+  })
+  .catch((err) => {
+    document.getElementById("standings").innerHTML =
+      "<tr><td colspan='4'>Failed to load data</td></tr>";
+    console.error(err);
+  });
       fetch(API_URL)
         .then((res) => res.json())
         .then((data) => {
@@ -74,3 +97,4 @@
     </script>
   </body>
 </html>
+
