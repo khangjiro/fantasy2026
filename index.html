@@ -31,7 +31,6 @@
   </head>
   <body>
     <h1>FPL League Standings</h1>
-
     <table>
       <thead>
         <tr>
@@ -46,44 +45,21 @@
 
     <script>
       const API_URL = "https://fantasy.premierleague.com/api/leagues-classic/145810/standings/";
-const PROXY = "https://corsproxy.io/?"; // proxy miễn phí
+      const PROXY = "https://corsproxy.io/?";
 
-fetch(PROXY + API_URL)
-  .then((res) => res.json())
-  .then((data) => {
-    const rows = data.standings.results
-      .map(
-        (team) => `
-      <tr>
-        <td>${team.rank}</td>
-        <td>${team.entry_name}</td>
-        <td>${team.player_name}</td>
-        <td>${team.total}</td>
-      </tr>
-    `
-      )
-      .join("");
-
-    document.getElementById("standings").innerHTML = rows;
-  })
-  .catch((err) => {
-    document.getElementById("standings").innerHTML =
-      "<tr><td colspan='4'>Failed to load data</td></tr>";
-    console.error(err);
-  });
-      fetch(API_URL)
+      fetch(PROXY + API_URL)
         .then((res) => res.json())
         .then((data) => {
           const rows = data.standings.results
             .map(
               (team) => `
-        <tr>
-          <td>${team.rank}</td>
-          <td>${team.entry_name}</td>
-          <td>${team.player_name}</td>
-          <td>${team.total}</td>
-        </tr>
-      `
+            <tr>
+              <td>${team.rank}</td>
+              <td>${team.entry_name}</td>
+              <td>${team.player_name}</td>
+              <td>${team.total}</td>
+            </tr>
+          `
             )
             .join("");
 
@@ -97,4 +73,3 @@ fetch(PROXY + API_URL)
     </script>
   </body>
 </html>
-
