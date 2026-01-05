@@ -28,9 +28,8 @@
     </tbody>
   </table>
   <script>
-    // CHỈ SỬA DÒNG NÀY: Thay đúng proxy của bạn!
-    const PROXY = "https://your-vercel-app.vercel.app/api/proxy?url=";
-
+    // Dùng proxy công cộng (tạm thời)
+    const PROXY = "https://corsproxy.io/?";
     const LEAGUE_ID = 145810;
     const BASE_API = `https://fantasy.premierleague.com/api/leagues-classic/${LEAGUE_ID}/standings/`;
     const GW_START = 20;
@@ -40,7 +39,6 @@
       let page = 1;
       let hasMore = true;
       while (hasMore) {
-        // Luôn dùng encodeURIComponent khi ghép url
         const res = await fetch(PROXY + encodeURIComponent(`${BASE_API}?page_standings=${page}`));
         const data = await res.json();
         if (data.standings && data.standings.results.length > 0) {
@@ -65,7 +63,6 @@
       }
     }
 
-    // Đảm bảo chạy sau khi DOM đã render
     document.addEventListener("DOMContentLoaded", async function() {
       try {
         const members = await getAllMembers();
