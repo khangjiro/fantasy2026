@@ -2,76 +2,148 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>FPL League GW20+</title>
+    <title>FPL League Standings (All Members, GW20+)</title>
     <style>
       body { font-family: Arial; background: #f4f6f8; padding: 20px; }
       h1 { text-align: center; }
       table { width: 100%; border-collapse: collapse; background: #fff; }
-      th, td { padding: 10px; border: 1px solid #ddd; text-align: center; }
+      th, td { padding: 10px; border: 1px solid #ddd; text-align: center; cursor: pointer; }
       th { background: #37003c; color: white; }
       .loading { color: #37003c; }
+      .active-sort { text-decoration: underline; }
     </style>
   </head>
   <body>
-    <h1>FPL League Standings (GW20+)</h1>
+    <h1>FPL League Standings (All Members, GW20+)</h1>
     <table>
       <thead>
         <tr>
           <th>Rank</th>
           <th>Team</th>
           <th>Manager</th>
-          <th>Total Points GW20+</th>
+          <th id="sort-total" title="Sort by total GW20+ points">Total GW20+ <span>⇅</span></th>
+          <th id="sort-gw20" title="Sort by GW20 points">GW20 <span>⇅</span></th>
+          <th id="sort-gw21" title="Sort by GW21 points">GW21 <span>⇅</span></th>
         </tr>
       </thead>
       <tbody id="standings"></tbody>
     </table>
 
     <script>
-      const API_URL = "https://fantasy.premierleague.com/api/leagues-classic/145810/standings/";
+      const LEAGUE_ID = 145810;
+      const BASE_API = `https://fantasy.premierleague.com/api/leagues-classic/${LEAGUE_ID}/standings/`;
       const PROXY = "https://corsproxy.io/?";
+      const GW_START = 20;
+
+      // Bảng dữ liệu sẽ lưu ở đây
+      let membersData = [];
+      let currentSort = { key: "total_gw20plus", asc: false };
 
       // Hiển thị loading
-      document.getElementById("standings").innerHTML = "<tr><td colspan='4' class='loading'>Loading...</td></tr>";
+      document.getElementById("standings").innerHTML = "<tr><td colspan='6' class='loading'>Loading...</td></tr>";
 
-      fetch(PROXY + API_URL)
-        .then((res) => res.json())
-        .then(async (data) => {
-          const teams = data.standings.results;
-          // Chỉ lấy tối đa 10 team để demo cho nhanh
-          const teamsToShow = teams.slice(0, 10);
+      // Hàm lấy toàn bộ member qua nhiều trang
+      async function getAllMembers() {
+        let members = [];
+        let page = 1;
+        let hasMore = true;
+        while (hasMore) {
+          const res = await fetch(PROXY + `${BASE_API}?page_standings=${page}`);
+          const data = await res.json();
+          if (data.standings && data.standings.results.length > 0) {
+            members = members.concat(data.standings.results);
+            hasMore = data.standings.has_next;
+            page++;
+          } else {
+            hasMore = false;
+          }
+        }
+        return members;
+      }
 
-          // Lấy tổng điểm GW 20+
-          const gwPromises = teamsToShow.map(team =>
-            fetch(PROXY + `https://fantasy.premierleague.com/api/entry/${team.entry}/history/`)
-              .then(res => res.json())
-              .then(history => {
-                // Lọc các gameweek >= 20 và cộng lại
-                const gw20plus = history.current.filter(gw => gw.event >= 20);
-                const totalGW20plus = gw20plus.reduce((sum, gw) => sum + gw.points, 0);
-                return totalGW20plus;
-              })
-              .catch(() => 'N/A')
-          );
+      // Lấy điểm từng tuần và tổng từ GW20+
+      async function getGWPoints(entry) {
+        try {
+          const res = await fetch(PROXY + `https://fantasy.premierleague.com/api/entry/${entry}/history/`);
+          const history = await res.json();
+          // Lọc GW từ 20 trở đi
+          const gw20 = history.current.find(gw => gw.event === 20)?.points ?? 0;
+          const gw21 = history.current.find(gw => gw.event === 21)?.points ?? 0;
+          const totalGW20plus = history.current.filter(gw => gw.event >= GW_START).reduce((sum, gw) => sum + gw.points, 0);
+          return { gw20, gw21, totalGW20plus };
+        } catch {
+          return { gw20: "N/A", gw21: "N/A", totalGW20plus: "N/A" };
+        }
+      }
 
-          const gwPoints = await Promise.all(gwPromises);
+      // Render bảng theo dữ liệu mảng membersData
+      function renderTable() {
+        let rows = membersData.map((m, i) => `
+          <tr>
+            <td>${m.rank}</td>
+            <td>${m.entry_name}</td>
+            <td>${m.player_name}</td>
+            <td>${m.total_gw20plus}</td>
+            <td>${m.gw20}</td>
+            <td>${m.gw21}</td>
+          </tr>
+        `).join("");
+        document.getElementById("standings").innerHTML = rows;
+      }
 
-          // Render bảng
-          const rows = teamsToShow.map((team, i) => `
-              <tr>
-                <td>${team.rank}</td>
-                <td>${team.entry_name}</td>
-                <td>${team.player_name}</td>
-                <td>${gwPoints[i]}</td>
-              </tr>
-            `
-          ).join("");
-          document.getElementById("standings").innerHTML = rows;
-        })
-        .catch((err) => {
-          document.getElementById("standings").innerHTML =
-            "<tr><td colspan='4'>Failed to load data</td></tr>";
-          console.error(err);
+      // Hàm sort và render lại
+      function sortAndRender(key) {
+        // Nếu bấm lại thì đảo chiều
+        if (currentSort.key === key) {
+          currentSort.asc = !currentSort.asc;
+        } else {
+          currentSort.key = key;
+          currentSort.asc = false;
+        }
+        membersData.sort((a, b) => {
+          let va = a[key], vb = b[key];
+          if (va === "N/A") return 1;
+          if (vb === "N/A") return -1;
+          return currentSort.asc ? va - vb : vb - va;
         });
+        renderTable();
+        // Highlight sort
+        document.querySelectorAll('th').forEach(th => th.classList.remove("active-sort"));
+        let thId = {"total_gw20plus":"sort-total","gw20":"sort-gw20","gw21":"sort-gw21"}[key];
+        if (thId) document.getElementById(thId).classList.add("active-sort");
+      }
+
+      // Main: gọi API và lưu dữ liệu vào membersData
+      (async () => {
+        try {
+          const members = await getAllMembers();
+
+          // Gọi API lịch sử từng thành viên (lấy điểm GW20, GW21, tổng GW20+)
+          const gwPointsPromises = members.map(member => getGWPoints(member.entry));
+          const gwPointsArr = await Promise.all(gwPointsPromises);
+
+          // Gộp dữ liệu
+          membersData = members.map((member, i) => ({
+            rank: member.rank,
+            entry_name: member.entry_name,
+            player_name: member.player_name,
+            total_gw20plus: gwPointsArr[i].totalGW20plus,
+            gw20: gwPointsArr[i].gw20,
+            gw21: gwPointsArr[i].gw21
+          }));
+
+          sortAndRender("total_gw20plus"); // Mặc định sort theo tổng GW20+
+        } catch (err) {
+          document.getElementById("standings").innerHTML =
+            "<tr><td colspan='6'>Failed to load data</td></tr>";
+          console.error(err);
+        }
+      })();
+
+      // Gán sự kiện click sort cho các th
+      document.getElementById("sort-total").onclick = () => sortAndRender("total_gw20plus");
+      document.getElementById("sort-gw20").onclick = () => sortAndRender("gw20");
+      document.getElementById("sort-gw21").onclick = () => sortAndRender("gw21");
     </script>
   </body>
 </html>
