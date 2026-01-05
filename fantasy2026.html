@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>FPL League Standings</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background: #f4f6f8;
+        padding: 20px;
+      }
+      h1 {
+        text-align: center;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: #fff;
+      }
+      th,
+      td {
+        padding: 10px;
+        border: 1px solid #ddd;
+        text-align: center;
+      }
+      th {
+        background: #37003c;
+        color: white;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>FPL League Standings</h1>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>Team</th>
+          <th>Manager</th>
+          <th>Total Points</th>
+        </tr>
+      </thead>
+      <tbody id="standings"></tbody>
+    </table>
+
+    <script>
+      const API_URL =
+        "https://fantasy.premierleague.com/api/leagues-classic/145810/standings/";
+
+      fetch(API_URL)
+        .then((res) => res.json())
+        .then((data) => {
+          const rows = data.standings.results
+            .map(
+              (team) => `
+        <tr>
+          <td>${team.rank}</td>
+          <td>${team.entry_name}</td>
+          <td>${team.player_name}</td>
+          <td>${team.total}</td>
+        </tr>
+      `
+            )
+            .join("");
+
+          document.getElementById("standings").innerHTML = rows;
+        })
+        .catch((err) => {
+          document.getElementById("standings").innerHTML =
+            "<tr><td colspan='4'>Failed to load data</td></tr>";
+          console.error(err);
+        });
+    </script>
+  </body>
+</html>
